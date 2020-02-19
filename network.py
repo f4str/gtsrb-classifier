@@ -9,6 +9,8 @@ adam optimizer
 '''
 
 import tensorflow as tf
+import numpy as np
+import data_loader
 
 def convolution_layer(input, channels, filters, filter_size=5, strides=1):
 	weights = tf.Variable(tf.random_normal([filter_size, filter_size, channels, filters]))
@@ -41,18 +43,21 @@ class NeuralNetwork:
 		self.learning_rate = 0.001
 		self.batch_size = 128
 		
-		self.img_shape = [32, 32, 3]
-		self.num_classes = 43
-		
 		self.load_data()
 		self.build()
 	
 	def load_data(self):
-		self.data = None
+		X_train, y_train = data_loader.load_training_data()
+		self.X_test, self.y_test = data_loader.load_testing_data()
+		
+		self.img_shape = list(X_train[0].shape)
+		self.num_classes = len(np.unique(y_train))
+		self.train_data = tf.data.Dataset.from_tensor_slices((X_train, y_train))
 	
 	def build(self):
 		self.x = tf.placeholder(tf.float32, [None] + self.img_shape)
-		self.y = tf.placeholder(tf.float32, [None, self.num_classes])
+		self.y = tf.placeholder(tf.int32, [None])
+		self.one_hot_y = tf.one_hot(self.y, self.num_classes)
 		
 		# Convolution 1: 32x32x3 -> 28x28x6 + ReLU
 		conv1_channels = 3
@@ -78,24 +83,26 @@ class NeuralNetwork:
 		# Logits: 84 -> 43
 		logits_input = 84
 		logits_output = 43
-		logits = fully_connected_layer(fc2, logits_input, logits_output, relu=False)
+		self.logits = fully_connected_layer(fc2, logits_input, logits_output, relu=False)
 		
-		self.prediction = tf.nn.softmax(logits)
+		self.prediction = tf.nn.softmax(self.logits)
 		
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=self.y)
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.one_hot_y)
 		self.loss = tf.reduce_mean(cross_entropy)
 		
 		self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
 		
-		correct_prediction = tf.equal(tf.argmax(self.prediction, axis=1), tf.argmax(self.y, axis=1))
+		correct_prediction = tf.equal(tf.argmax(self.prediction, axis=1), tf.argmax(self.one_hot_y, axis=1))
 		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 	
 	def train(self, epochs = 100):
 		self.sess.run(tf.global_variables_initializer())
 		
 		for i in range(epochs):
-			x_batch, y_batch = self.data.train.next_batch(self.batch_size)
-			feed_dict = {self.x: x_batch, self.y: y_batch}
+			dataset = self.train_data.shuffle(10, reshuffle_each_iteration=True).batch(self.batch_size)
+			iter = dataset.make_one_shot_iterator()
+			x_batch, y_batch = iter.get_next()
+			feed_dict = {self.x: x_batch.eval(session=self.sess), self.y: y_batch.eval(session=self.sess)}
 			
 			self.sess.run(self.optimizer, feed_dict=feed_dict)
 			
@@ -103,7 +110,7 @@ class NeuralNetwork:
 			print(f'epoch {i + 1}: loss = {loss:.4f}, training accuracy = {acc:.4f}')
 		print('training complete')
 		
-		feed_dict = {self.x: self.data.test.images, self.y: self.data.test.labels}
+		feed_dict = {self.x: self.X_test, self.y: self.y_test}
 		acc = self.sess.run(self.accuracy, feed_dict=feed_dict)
 		print(f'test accuracy = {acc:.4f}')
 	
