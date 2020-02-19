@@ -1,0 +1,10 @@
+.vscode/
+data/
+images/
+__pycache__/
+*.py[cod]
+*.ps
+*.png
+*.jpg
+*.ppm
+
