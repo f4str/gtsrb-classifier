@@ -1,5 +1,6 @@
 .vscode/
 data/
+models/
 images/
 __pycache__/
 *.py[cod]

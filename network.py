@@ -52,7 +52,13 @@ class NeuralNetwork:
 		
 		self.img_shape = list(X_train[0].shape)
 		self.num_classes = len(np.unique(y_train))
-		self.train_data = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+		
+		dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+		dataset = dataset.shuffle(100)
+		dataset = dataset.repeat(3)
+		dataset = dataset.batch(self.batch_size)
+		iterator = dataset.make_one_shot_iterator()
+		self.x_batch, self.y_batch = iterator.get_next()
 	
 	def build(self):
 		self.x = tf.placeholder(tf.float32, [None] + self.img_shape)
@@ -99,15 +105,12 @@ class NeuralNetwork:
 		self.sess.run(tf.global_variables_initializer())
 		
 		for i in range(epochs):
-			dataset = self.train_data.shuffle(10, reshuffle_each_iteration=True).batch(self.batch_size)
-			iter = dataset.make_one_shot_iterator()
-			x_batch, y_batch = iter.get_next()
-			feed_dict = {self.x: x_batch.eval(session=self.sess), self.y: y_batch.eval(session=self.sess)}
-			
+			feed_dict = {self.x: self.x_batch.eval(session=self.sess), self.y: self.y_batch.eval(session=self.sess)}
 			self.sess.run(self.optimizer, feed_dict=feed_dict)
 			
 			loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
 			print(f'epoch {i + 1}: loss = {loss:.4f}, training accuracy = {acc:.4f}')
+			
 		print('training complete')
 		
 		feed_dict = {self.x: self.X_test, self.y: self.y_test}
@@ -120,4 +123,4 @@ class NeuralNetwork:
 
 if __name__ == '__main__':
 	net = NeuralNetwork()
-	net.train(500)
+	net.train(200)
