@@ -10,7 +10,6 @@ adam optimizer
 
 import tensorflow as tf
 import numpy as np
-from sklearn.utils import shuffle
 import data_loader
 
 def convolution_layer(input, channels, filters, filter_size=5, strides=1):
@@ -51,6 +50,11 @@ class NeuralNetwork:
 		self.X_train, self.y_train = data_loader.load_training_data()
 		self.X_valid, self.y_valid = data_loader.load_validation_data()
 		self.X_test, self.y_test = data_loader.load_testing_data()
+		
+		data = tf.data.Dataset.from_tensor_slices((self.X_train, self.y_train)).shuffle(10000).batch(self.batch_size)
+		iterator = tf.data.Iterator.from_structure(data.output_types, data.output_shapes)
+		self.train_initializer = iterator.make_initializer(data)
+		self.X_batch, self.y_batch = iterator.get_next()
 		
 		self.img_shape = list(self.X_train[0].shape)
 		self.num_classes = len(np.unique(self.y_train))
@@ -103,19 +107,21 @@ class NeuralNetwork:
 		print('training start')
 		
 		for i in range(epochs):
-			X_data, y_data = shuffle(self.X_train, self.y_train)
-			total_acc = 0
-			for offset in range(0, len(y_data), self.batch_size):
-				end = offset + self.batch_size
-				batch_x, batch_y = X_data[offset:end], y_data[offset:end]
-				feed_dict = {self.x: batch_x, self.y: batch_y}
-				self.sess.run(self.optimizer, feed_dict=feed_dict)
-				loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-				total_acc += acc * len(batch_y)
+			self.sess.run(self.train_initializer)
+			try: 
+				total_acc = 0
+				while True:
+					batch_x, batch_y = self.sess.run([self.X_batch, self.y_batch])
+					feed_dict = {self.x: batch_x, self.y: batch_y}
+					self.sess.run(self.optimizer, feed_dict=feed_dict)
+					loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+					total_acc += acc * len(batch_y)
+			except tf.errors.OutOfRangeError:
+				pass
 			
 			feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
 			loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-			print(f'epoch {i + 1}: loss = {loss:.4f}, training accuracy = {total_acc / len(y_data):.4f}, validation accuracy = {acc:.4f}')
+			print(f'epoch {i + 1}: loss = {loss:.4f}, training accuracy = {total_acc / len(self.y_train):.4f}, validation accuracy = {acc:.4f}')
 			
 		print('training complete')
 		
@@ -129,4 +135,4 @@ class NeuralNetwork:
 
 if __name__ == '__main__':
 	net = NeuralNetwork()
-	net.train(20)
+	net.train(10)
