@@ -2,24 +2,39 @@
 convolutional neural network
 tensorflow 
 cross entropy loss function
-relu convolution activation function
+relu activation function
 max pooling
-softmax fully connected activation function
+softmax logits
 adam optimizer
+based on VGGNet
 '''
 
 import tensorflow as tf
 import numpy as np
 import data_loader
 
-def convolution_layer(input, channels, filters, filter_size=5, strides=1):
-	weights = tf.Variable(tf.truncated_normal(shape=[filter_size, filter_size, channels, filters], mean=0, stddev=0.1))
+def convolution_layer(input, channels, filters, kernel_size=5, strides=1, padding='VALID'):
+	weights = tf.Variable(tf.truncated_normal(
+		shape=[kernel_size, kernel_size, channels, filters], 
+		mean=0, 
+		stddev=0.1)
+	)
 	biases = tf.Variable(tf.zeros([filters]))
-	layer = tf.nn.conv2d(input, filter=weights, strides=[1, strides, strides, 1], padding='VALID') + biases
+	layer = tf.nn.conv2d(
+		input, 
+		filter=weights, 
+		strides=[1, strides, strides, 1], 
+		padding=padding
+	) + biases
 	return tf.nn.relu(layer)
 
-def pooling_layer(input, k=2):
-	return tf.nn.max_pool(input, ksize=[1, k, k, 1], strides=[1, k, k, 1], padding='VALID')
+def pooling_layer(input, k=2, padding='VALID'):
+	return tf.nn.max_pool(
+		input, 
+		ksize=[1, k, k, 1], 
+		strides=[1, k, k, 1], 
+		padding=padding
+	)
 
 def flatten_layer(layer):
 	layer_shape = layer.get_shape()
@@ -27,7 +42,11 @@ def flatten_layer(layer):
 	return tf.reshape(layer, [-1, num_features])
 
 def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
-	weights = tf.Variable(tf.truncated_normal(shape=[num_inputs, num_outputs], mean=0, stddev=0.1))
+	weights = tf.Variable(tf.truncated_normal(
+		shape=[num_inputs, num_outputs], 
+		mean=0, 
+		stddev=0.1)
+	)
 	biases = tf.Variable(tf.zeros([num_outputs]))
 	layer = tf.matmul(input, weights) + biases
 	if relu:
@@ -51,7 +70,8 @@ class NeuralNetwork:
 		self.X_valid, self.y_valid = data_loader.load_validation_data()
 		self.X_test, self.y_test = data_loader.load_testing_data()
 		
-		data = tf.data.Dataset.from_tensor_slices((self.X_train, self.y_train)).shuffle(10000).batch(self.batch_size)
+		data = tf.data.Dataset.from_tensor_slices((self.X_train, self.y_train))
+		data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
 		iterator = tf.data.Iterator.from_structure(data.output_types, data.output_shapes)
 		self.train_initializer = iterator.make_initializer(data)
 		self.X_batch, self.y_batch = iterator.get_next()
@@ -63,32 +83,32 @@ class NeuralNetwork:
 		self.x = tf.placeholder(tf.float32, [None] + self.img_shape)
 		self.y = tf.placeholder(tf.int32, [None])
 		
-		# Convolution 1: 32x32x3 -> 28x28x6 + ReLU
-		conv1_channels = 3
-		conv1_filters = 6
-		conv1 = convolution_layer(self.x, conv1_channels, conv1_filters)
-		# Pooling: 28x28x6 -> 14x14x6
-		pool1 = pooling_layer(conv1)
-		# Convolution 2: 14x14x6 -> 10x10x16 + ReLU
-		conv2_channels = 6
-		conv2_filters = 16
-		conv2 = convolution_layer(pool1, conv2_channels, conv2_filters)
-		# Pooling: 10x10x16 -> 5x5x16
-		pool2 = pooling_layer(conv2)
-		# Flatten: 5x5x16 -> 400
-		flat = flatten_layer(pool2)
-		# Fully Connected 1: 400 -> 120
-		fc1_input = 400
-		fc1_output = 120
-		fc1 = fully_connected_layer(flat, fc1_input, fc1_output)
-		# Fully Connected 2: 120 -> 84
-		fc2_input = 120
-		fc2_output = 84
-		fc2 = fully_connected_layer(fc1, fc2_input, fc2_output)
-		# Logits: 84 -> 43
-		logits_input = 84
-		logits_output = 43
-		logits = fully_connected_layer(fc2, logits_input, logits_output, relu=False)
+		# Layer 1 = Convolution: 32x32@3 -> 32x32@32 + ReLU
+		conv1 = convolution_layer(self.x, channels=3, filters=32, kernel_size=3, padding='SAME')
+		# Layer 2 = Convolution: 32x32@32 -> 32x32@32 + ReLU
+		conv2 = convolution_layer(conv1, channels=32, filters=32, kernel_size=3, padding='SAME')
+		# Layer 3 = Pooling: 32x32@32 -> 16x16@32
+		pool1 = pooling_layer(conv2)
+		# Layer 4 = Convolution: 16x16@32 -> 16x16@64 + ReLU
+		conv3 = convolution_layer(pool1, channels=32, filters=64, kernel_size=3, padding='SAME')
+		# Layer 5 = Convolution: 16x16@64 -> 16x16@64 + ReLU
+		conv4 = convolution_layer(conv3, channels=64, filters=64, kernel_size=3, padding='SAME')
+		# Layer 6 = Pooling: 16x16@64 -> 8x8@64
+		pool2 = pooling_layer(conv4)
+		# Layer 7 = Convolution: 8x8@64 -> 8x8@128 + ReLU
+		conv5 = convolution_layer(pool2, channels=64, filters=128, kernel_size=3, padding='SAME')
+		# Layer 8 = Convolution: 8x8@128 -> 8x8@128 + ReLU
+		conv6 = convolution_layer(conv5, channels=128, filters=128, kernel_size=3, padding='SAME')
+		# Layer 9 = Pooling: 8x8@128 -> 4x4@128
+		pool3 = pooling_layer(conv6)
+		# Layer 10 = Flatten: 4x4@128 -> 2048
+		flat = flatten_layer(pool3)
+		# Layer 11 = Fully Connected: 2048 -> 128
+		fc1 = fully_connected_layer(flat, num_inputs=2048, num_outputs=128)
+		# Layer 12 = Fully Connected: 128 -> 128
+		fc2 = fully_connected_layer(fc1, num_inputs=128, num_outputs=128)
+		# Layer 13 = Logits: 128 -> 43
+		logits = fully_connected_layer(fc2, num_inputs=128, num_outputs=self.num_classes, relu=False)
 		
 		one_hot_y = tf.one_hot(self.y, self.num_classes)
 		
