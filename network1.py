@@ -13,14 +13,28 @@ import tensorflow as tf
 import numpy as np
 import data_loader
 
-def convolution_layer(input, channels, filters, filter_size=5, strides=1):
-	weights = tf.Variable(tf.truncated_normal(shape=[filter_size, filter_size, channels, filters], mean=0, stddev=0.1))
+def convolution_layer(input, channels, filters, kernel_size=5, strides=1, padding='VALID'):
+	weights = tf.Variable(tf.truncated_normal(
+		shape=[kernel_size, kernel_size, channels, filters], 
+		mean=0, 
+		stddev=0.1
+	))
 	biases = tf.Variable(tf.zeros([filters]))
-	layer = tf.nn.conv2d(input, filter=weights, strides=[1, strides, strides, 1], padding='VALID') + biases
+	layer = tf.nn.conv2d(
+		input, 
+		filter=weights, 
+		strides=[1, strides, strides, 1], 
+		padding=padding
+	) + biases
 	return tf.nn.relu(layer)
 
-def pooling_layer(input, k=2):
-	return tf.nn.max_pool(input, ksize=[1, k, k, 1], strides=[1, k, k, 1], padding='VALID')
+def pooling_layer(input, k=2, padding='VALID'):
+	return tf.nn.max_pool(
+		input, 
+		ksize=[1, k, k, 1], 
+		strides=[1, k, k, 1], 
+		padding=padding
+	)
 
 def flatten_layer(layer):
 	layer_shape = layer.get_shape()
@@ -28,7 +42,11 @@ def flatten_layer(layer):
 	return tf.reshape(layer, [-1, num_features])
 
 def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
-	weights = tf.Variable(tf.truncated_normal(shape=[num_inputs, num_outputs], mean=0, stddev=0.1))
+	weights = tf.Variable(tf.truncated_normal(
+		shape=[num_inputs, num_outputs], 
+		mean=0, 
+		stddev=0.1
+	))
 	biases = tf.Variable(tf.zeros([num_outputs]))
 	layer = tf.matmul(input, weights) + biases
 	if relu:
@@ -40,6 +58,7 @@ def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
 class NeuralNetwork:
 	def __init__(self):
 		self.sess = tf.Session()
+		self.saver = tf.train.Saver()
 		
 		self.learning_rate = 0.001
 		self.batch_size = 128
@@ -48,9 +67,9 @@ class NeuralNetwork:
 		self.build()
 	
 	def load_data(self):
-		self.X_train, self.y_train = data_loader.load_training_data()
-		self.X_valid, self.y_valid = data_loader.load_validation_data()
-		self.X_test, self.y_test = data_loader.load_testing_data()
+		self.X_train, self.y_train = data_loader.load_training_data(normalize=True)
+		self.X_valid, self.y_valid = data_loader.load_validation_data(normalize=True)
+		self.X_test, self.y_test = data_loader.load_testing_data(normalize=True)
 		
 		data = tf.data.Dataset.from_tensor_slices((self.X_train, self.y_train))
 		data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
@@ -65,32 +84,22 @@ class NeuralNetwork:
 		self.x = tf.placeholder(tf.float32, [None] + self.img_shape)
 		self.y = tf.placeholder(tf.int32, [None])
 		
-		# Convolution 1: 32x32x3 -> 28x28x6 + ReLU
-		conv1_channels = 3
-		conv1_filters = 6
-		conv1 = convolution_layer(self.x, conv1_channels, conv1_filters)
-		# Pooling: 28x28x6 -> 14x14x6
+		# Layer 1 = Convolution: 32x32@3 -> 28x28@6 + ReLU
+		conv1 = convolution_layer(self.x, channels=3, filter=6, kernel_size=5, padding='VALID')
+		# Layer 2 = Pooling: 28x28@6 -> 14x14@6
 		pool1 = pooling_layer(conv1)
-		# Convolution 2: 14x14x6 -> 10x10x16 + ReLU
-		conv2_channels = 6
-		conv2_filters = 16
-		conv2 = convolution_layer(pool1, conv2_channels, conv2_filters)
-		# Pooling: 10x10x16 -> 5x5x16
+		# Layer 3 = Convolution: 14x14@6 -> 10x10@16 + ReLU
+		conv2 = convolution_layer(pool1, channels=6, filters=16, kernel_size=5, padding='VALID')
+		# Layer 4 = Pooling: 10x10@16 -> 5x5@16
 		pool2 = pooling_layer(conv2)
-		# Flatten: 5x5x16 -> 400
+		# Layer 5 = Flatten: 5x5@16 -> 400
 		flat = flatten_layer(pool2)
-		# Fully Connected 1: 400 -> 120
-		fc1_input = 400
-		fc1_output = 120
-		fc1 = fully_connected_layer(flat, fc1_input, fc1_output)
-		# Fully Connected 2: 120 -> 84
-		fc2_input = 120
-		fc2_output = 84
-		fc2 = fully_connected_layer(fc1, fc2_input, fc2_output)
-		# Logits: 84 -> 43
-		logits_input = 84
-		logits_output = 43
-		logits = fully_connected_layer(fc2, logits_input, logits_output, relu=False)
+		# Layer 6 = Fully Connected: 400 -> 120
+		fc1 = fully_connected_layer(flat, num_inputs=400, num_outputs=120)
+		# Layer 7 = Fully Connected: 120 -> 84
+		fc2 = fully_connected_layer(fc1, num_inputs=120, num_outputs=84)
+		# Layer 8 = Logits: 84 -> 43
+		logits = fully_connected_layer(fc2, num_inputs=84, num_outputs=43, relu=False)
 		
 		one_hot_y = tf.one_hot(self.y, self.num_classes)
 		
@@ -103,7 +112,7 @@ class NeuralNetwork:
 		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 		self.prediction = tf.argmax(logits, axis=1)
 	
-	def train(self, epochs = 100):
+	def train(self, epochs = 10):
 		self.sess.run(tf.global_variables_initializer())
 		
 		print('training start')

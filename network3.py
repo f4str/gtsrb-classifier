@@ -58,6 +58,7 @@ def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
 class NeuralNetwork:
 	def __init__(self):
 		self.sess = tf.Session()
+		self.saver = tf.train.Saver()
 		
 		self.learning_rate = 0.001
 		self.batch_size = 128
@@ -66,9 +67,9 @@ class NeuralNetwork:
 		self.build()
 	
 	def load_data(self):
-		self.X_train, self.y_train = data_loader.load_training_data()
-		self.X_valid, self.y_valid = data_loader.load_validation_data()
-		self.X_test, self.y_test = data_loader.load_testing_data()
+		self.X_train, self.y_train = data_loader.load_training_data(normalize=True)
+		self.X_valid, self.y_valid = data_loader.load_validation_data(normalize=True)
+		self.X_test, self.y_test = data_loader.load_testing_data(normalize=True)
 		
 		data = tf.data.Dataset.from_tensor_slices((self.X_train, self.y_train))
 		data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
@@ -121,7 +122,7 @@ class NeuralNetwork:
 		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 		self.prediction = tf.argmax(logits, axis=1)
 	
-	def train(self, epochs = 100):
+	def train(self, epochs = 10):
 		self.sess.run(tf.global_variables_initializer())
 		
 		print('training start')

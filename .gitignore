@@ -3,6 +3,8 @@ data/
 models/
 images/
 venv/
+.venv/
+env/
 .env/
 __pycache__/
 *.py[cod]
