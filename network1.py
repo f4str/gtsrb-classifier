@@ -58,10 +58,10 @@ def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
 class NeuralNetwork:
 	def __init__(self):
 		self.sess = tf.Session()
-		self.saver = tf.train.Saver()
 		
 		self.learning_rate = 0.001
 		self.batch_size = 128
+		self.patience = 8
 		
 		self.load_data()
 		self.build()
@@ -85,7 +85,7 @@ class NeuralNetwork:
 		self.y = tf.placeholder(tf.int32, [None])
 		
 		# Layer 1 = Convolution: 32x32@3 -> 28x28@6 + ReLU
-		conv1 = convolution_layer(self.x, channels=3, filter=6, kernel_size=5, padding='VALID')
+		conv1 = convolution_layer(self.x, channels=3, filters=6, kernel_size=5, padding='VALID')
 		# Layer 2 = Pooling: 28x28@6 -> 14x14@6
 		pool1 = pooling_layer(conv1)
 		# Layer 3 = Convolution: 14x14@6 -> 10x10@16 + ReLU
@@ -112,37 +112,66 @@ class NeuralNetwork:
 		self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 		self.prediction = tf.argmax(logits, axis=1)
 	
-	def train(self, epochs = 10):
+	def train(self, epochs=10):
 		self.sess.run(tf.global_variables_initializer())
+		total_train_loss = []
+		total_train_acc = []
+		total_valid_loss = [] 
+		total_valid_acc = []
+		best_acc = 0
+		no_acc_change = 0
 		
 		print('training start')
 		
-		for i in range(epochs):
+		for e in range(epochs):
 			self.sess.run(self.train_initializer)
 			try: 
+				total_loss = 0
 				total_acc = 0
 				while True:
 					batch_x, batch_y = self.sess.run([self.X_batch, self.y_batch])
 					feed_dict = {self.x: batch_x, self.y: batch_y}
 					self.sess.run(self.optimizer, feed_dict=feed_dict)
 					loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+					total_loss += loss * len(batch_y)
 					total_acc += acc * len(batch_y)
 			except tf.errors.OutOfRangeError:
 				pass
 			
+			train_loss = total_loss / len(self.y_train)
+			train_acc = total_acc / len(self.y_train)
+			
 			feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
-			loss, acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-			print(f'epoch {i + 1}: loss = {loss:.4f}, training accuracy = {total_acc / len(self.y_train):.4f}, validation accuracy = {acc:.4f}')
+			valid_loss, valid_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+			print(f'epoch {e + 1}: train loss = {train_loss:.4f}, train acc = {train_acc:.4f}, valid loss = {valid_loss:.4f}, valid acc = {valid_acc:.4f}')
+			
+			total_train_loss.append(train_loss)
+			total_train_acc.append(train_acc)
+			total_valid_loss.append(valid_loss)
+			total_valid_acc.append(valid_acc)
+			
+			if valid_acc > best_acc:
+				best_acc = valid_acc
+				no_acc_change = 0
+			else:
+				no_acc_change += 1
+			
+			if no_acc_change >= self.patience:
+				print('early stopping')
+				break
 			
 		print('training complete')
 		
 		feed_dict = {self.x: self.X_test, self.y: self.y_test}
 		acc = self.sess.run(self.accuracy, feed_dict=feed_dict)
 		print(f'test accuracy = {acc:.4f}')
+		
+		return total_train_loss, total_train_acc, total_valid_loss, total_valid_acc
 	
 	def predict(self, x):
 		feed_dict = {self.x : x}
 		return self.sess.run(tf.argmax(self.prediction, axis=1), feed_dict=feed_dict)
+
 
 if __name__ == '__main__':
 	net = NeuralNetwork()
