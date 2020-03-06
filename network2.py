@@ -1,4 +1,4 @@
-'''
+"""
 convolutional neural network
 tensorflow 
 cross entropy loss function
@@ -7,44 +7,48 @@ max pooling
 softmax logits
 adam optimizer
 based on simplified VGGNet
-'''
+"""
 
 import tensorflow as tf
 import numpy as np
 import data_loader
 
+
 def convolution_layer(input, channels, filters, kernel_size=5, strides=1, padding='VALID'):
-	weights = tf.Variable(tf.truncated_normal(
-		shape=[kernel_size, kernel_size, channels, filters], 
-		mean=0, 
-		stddev=0.1	
+	weights = tf.Variable(tf.random.truncated_normal(
+		shape=[kernel_size, kernel_size, channels, filters],
+		mean=0,
+		stddev=0.1
 	))
 	biases = tf.Variable(tf.zeros([filters]))
 	layer = tf.nn.conv2d(
-		input, 
-		filter=weights, 
-		strides=[1, strides, strides, 1], 
+		input,
+		filter=weights,
+		strides=[1, strides, strides, 1],
 		padding=padding
 	) + biases
 	return tf.nn.relu(layer)
 
+
 def pooling_layer(input, k=2, padding='VALID'):
-	return tf.nn.max_pool(
-		input, 
-		ksize=[1, k, k, 1], 
-		strides=[1, k, k, 1], 
+	return tf.nn.max_pool2d(
+		input,
+		ksize=[1, k, k, 1],
+		strides=[1, k, k, 1],
 		padding=padding
-	)
+		)
+
 
 def flatten_layer(layer):
 	layer_shape = layer.get_shape()
 	num_features = layer_shape[1:4].num_elements()
 	return tf.reshape(layer, [-1, num_features])
 
+
 def fully_connected_layer(input, num_inputs, num_outputs, relu=True):
-	weights = tf.Variable(tf.truncated_normal(
-		shape=[num_inputs, num_outputs], 
-		mean=0, 
+	weights = tf.Variable(tf.random.truncated_normal(
+		shape=[num_inputs, num_outputs],
+		mean=0,
 		stddev=0.1)
 	)
 	biases = tf.Variable(tf.zeros([num_outputs]))
@@ -120,7 +124,7 @@ class NeuralNetwork:
 		self.sess.run(tf.global_variables_initializer())
 		total_train_loss = []
 		total_train_acc = []
-		total_valid_loss = [] 
+		total_valid_loss = []
 		total_valid_acc = []
 		best_acc = 0
 		no_acc_change = 0
@@ -129,7 +133,7 @@ class NeuralNetwork:
 		
 		for e in range(epochs):
 			self.sess.run(self.train_initializer)
-			try: 
+			try:
 				total_loss = 0
 				total_acc = 0
 				while True:
@@ -147,7 +151,13 @@ class NeuralNetwork:
 			
 			feed_dict = {self.x: self.X_valid, self.y: self.y_valid}
 			valid_loss, valid_acc = self.sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-			print(f'epoch {e + 1}: train loss = {train_loss:.4f}, train acc = {train_acc:.4f}, valid loss = {valid_loss:.4f}, valid acc = {valid_acc:.4f}')
+			
+			print(f'epoch {e + 1}:',
+				f'train loss = {train_loss:.4f},',
+				f'train acc = {train_acc:.4f},',
+				f'valid loss = {valid_loss:.4f},',
+				f'valid acc = {valid_acc:.4f}'
+			)
 			
 			total_train_loss.append(train_loss)
 			total_train_acc.append(train_acc)
@@ -163,7 +173,7 @@ class NeuralNetwork:
 			if no_acc_change >= self.patience:
 				print('early stopping')
 				break
-			
+		
 		print('training complete')
 		
 		feed_dict = {self.x: self.X_test, self.y: self.y_test}
@@ -173,7 +183,7 @@ class NeuralNetwork:
 		return total_train_loss, total_train_acc, total_valid_loss, total_valid_acc
 	
 	def predict(self, x):
-		feed_dict = {self.x : x}
+		feed_dict = {self.x: x}
 		return self.sess.run(tf.argmax(self.prediction, axis=1), feed_dict=feed_dict)
 
 
