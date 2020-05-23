@@ -1,6 +1,6 @@
 # GTSRB German Traffic Sign Classifiers
 
-Implementations of various classifiers using TensorFlow 1.15.3 for the GTSRB data set.
+Implementations of various classifiers using TensorFlow 1.15 for the GTSRB data set.
 
 ## Data Set
 

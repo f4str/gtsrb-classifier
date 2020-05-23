@@ -1,3 +1,4 @@
+import time
 import tensorflow as tf
 import numpy as np
 import data_loader
@@ -84,13 +85,14 @@ class MiniVGGNet:
 			self.sess.run(train_iterator.initializer)
 			
 			if verbose:
+				start = time.time()
 				print(f'epoch {e + 1} / {epochs}:')
 			
 			# train on training data
+			total = 0
 			train_loss = 0
 			train_acc = 0
 			try:
-				total = 0
 				while True:
 					X_batch, y_batch = self.sess.run([X_train, y_train])
 					size = len(X_batch)
@@ -103,8 +105,9 @@ class MiniVGGNet:
 					train_acc += acc * size
 					
 					if verbose:
+						current = time.time()
 						total += size
-						print(f'[{total} / {train_size}]', 
+						print(f'[{total} / {train_size}] - {(current - start):.2f} s -', 
 							f'train loss = {(train_loss / total):.4f},',
 							f'train acc = {(train_acc / total):.4f}',
 							end='\r'
@@ -143,7 +146,8 @@ class MiniVGGNet:
 			total_valid_acc.append(valid_acc)
 			
 			if verbose:
-				print(f'[{total} / {train_size}]',
+				end = time.time()
+				print(f'[{total} / {train_size}] - {(end - start):.2f} s -',
 					f'train loss = {train_loss:.4f},',
 					f'train acc = {train_acc:.4f},',
 					f'valid loss = {valid_loss:.4f},',
